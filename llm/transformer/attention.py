@@ -53,11 +53,11 @@ class MultiHeadSelfAttention(torch.nn.Module):
         k = rearrange(self.w_k(x), '... s (h d_k) -> ... h s d_k', h=self.num_heads)
         if self.position_encoding:
             if token_positions is None:
-                token_positions = torch.arange(seq_len)
+                token_positions = torch.arange(seq_len, device=x.device)
             q = self.position_encoding(q, token_positions)       
             k = self.position_encoding(k, token_positions)
         v = rearrange(self.w_v(x), '... s (h d_v) -> ... h s d_v', h=self.num_heads)
 
-        mask = torch.tril(torch.ones(seq_len, seq_len, dtype=torch.bool))
+        mask = torch.tril(torch.ones(seq_len, seq_len, dtype=torch.bool, device=x.device))
         attn_out = scaled_dot_product_attention(q, k, v, mask)  # [... h s d_v]
         return self.w_o(rearrange(attn_out, '... h s d_v -> ... s (h d_v)'))
