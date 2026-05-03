@@ -29,7 +29,7 @@ class TransformerLM(torch.nn.Module):
     ):
         super().__init__()
         self.embd = Embedding(num_embeddings=vocab_size, embedding_dim=d_model, device=device, dtype=dtype)
-        self.rope = RoPE(theta=rope_theta, d_k=d_model//num_heads, max_seq_len=context_length)
+        self.rope = RoPE(theta=rope_theta, d_k=d_model//num_heads, max_seq_len=context_length, device=device)
         self.layers = torch.nn.ModuleList([
             Transformer(d_model=d_model, num_heads=num_heads, d_ff=d_ff, position_encoding=self.rope, device=device, dtype=dtype)
             for _ in range(num_layers)

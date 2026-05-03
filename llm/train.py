@@ -1,10 +1,12 @@
 """Training loop for TransformerLM on TinyStories."""
 
 import os
+import csv
 import time
 import argparse
 import numpy as np
 import torch
+import matplotlib.pyplot as plt
 
 from transformer import TransformerLM, cross_entropy, AdamW
 from transformer.training_utils import get_lr_cosine_schedule, gradient_clipping, get_batch
@@ -38,6 +40,11 @@ def train(args):
 
     best_val_loss = float("inf")
     t0 = time.time()
+    log_file = os.path.join(args.ckpt_dir, "log.csv")
+    with open(log_file, "w", newline="") as f:
+        csv.writer(f).writerow(["step", "train_loss", "val_loss"])
+    train_log = []  # (step, loss) for every log_interval
+    val_log = []    # (step, loss) for every eval_interval
 
     for step in range(1, args.max_steps + 1):
         model.train()
@@ -58,7 +65,11 @@ def train(args):
         # Logging
         if step % args.log_interval == 0:
             elapsed = time.time() - t0
-            print(f"step {step:>6d} | loss {loss.item():.4f} | lr {lr:.2e} | {elapsed:.1f}s")
+            train_loss = loss.item()
+            print(f"step {step:>6d} | loss {train_loss:.4f} | lr {lr:.2e} | {elapsed:.1f}s")
+            train_log.append((step, train_loss))
+            with open(log_file, "a", newline="") as f:
+                csv.writer(f).writerow([step, f"{train_loss:.6f}", ""])
 
         # Validation
         if step % args.eval_interval == 0:
@@ -71,6 +82,9 @@ def train(args):
                     val_losses.append(val_loss.item())
             avg_val_loss = sum(val_losses) / len(val_losses)
             print(f"  --> val loss {avg_val_loss:.4f}")
+            val_log.append((step, avg_val_loss))
+            with open(log_file, "a", newline="") as f:
+                csv.writer(f).writerow([step, "", f"{avg_val_loss:.6f}"])
             if avg_val_loss < best_val_loss:
                 best_val_loss = avg_val_loss
                 ckpt_path = os.path.join(args.ckpt_dir, "best.pt")
@@ -92,6 +106,24 @@ def train(args):
         "args": vars(args),
     }, ckpt_path)
     print(f"Training done. Final checkpoint: {ckpt_path}")
+
+    # Plot loss curve
+    fig, ax = plt.subplots()
+    if train_log:
+        steps, losses = zip(*train_log)
+        ax.plot(steps, losses, label="train", alpha=0.7)
+    if val_log:
+        steps, losses = zip(*val_log)
+        ax.plot(steps, losses, label="val", marker="o", markersize=4)
+    ax.set_xlabel("step")
+    ax.set_ylabel("loss")
+    ax.legend()
+    ax.set_title("Training Loss")
+    plot_path = os.path.join(args.ckpt_dir, "loss_curve.png")
+    fig.savefig(plot_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Loss curve saved to {plot_path}")
+    print(f"Training log saved to {log_file}")
 
 
 def main():
